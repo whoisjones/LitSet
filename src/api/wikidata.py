@@ -13,11 +13,6 @@ def retrieve_entity2instance():
     with open(src.ENTITY_DIR / "wikidata_entities.json", "r") as f:
         entities = json.load(f)
 
-    with open(src.ENTITY_DIR / "old_entities.json", "r") as f:
-        old_entities = json.load(f)
-
-    entities = list(set(entities) - set(old_entities))
-
     # max header size
     chunk_size = 200
 
@@ -71,15 +66,15 @@ def retrieve_entity2instance():
             instanceID2subclassID = src.utils.data.merge_dicts(instanceID2subclassID, temp_i2s)
 
     entityID2instanceID = {key: list(value) for key, value in entityID2instanceID.items()}
-    with open(src.ENTITY_DIR / f"new_entityID2instanceID.json", "w") as f:
+    with open(src.ENTITY_DIR / f"entityID2instanceID.json", "w") as f:
         json.dump(entityID2instanceID, f)
 
     instanceID2subclassID = {key: list(value) for key, value in instanceID2subclassID.items()}
-    with open(src.ENTITY_DIR / f"new_instanceID2subclassID.json", "w") as f:
+    with open(src.ENTITY_DIR / f"instanceID2subclassID.json", "w") as f:
         json.dump(instanceID2subclassID, f)
 
-    with open(src.ENTITY_DIR / f"new_instanceID2label.json", "w") as f:
+    with open(src.ENTITY_DIR / f"instanceID2label.json", "w") as f:
         json.dump(instanceID2label, f)
 
-    with open(src.ENTITY_DIR / f"new_subclassID2label.json", "w") as f:
+    with open(src.ENTITY_DIR / f"subclassID2label.json", "w") as f:
         json.dump(subclassID2label, f)

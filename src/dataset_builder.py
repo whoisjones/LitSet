@@ -143,7 +143,7 @@ def build_NER(output_format: list):
 
     with open(src.ENTITY_DIR / "wikipageID2wikidataID.json", "r") as f:
         wikipageID2wikidataID = json.load(f)
-
+    """"
     # Generate T-REx data points
     trex_files = glob.glob(str(src.DATA_DIR / "trex" / "*.json"))
 
@@ -162,10 +162,10 @@ def build_NER(output_format: list):
 
         for _format, generators in format_generators.items():
             write_to_file(chain(*generators), _format)
-
+    """
     # Generate Zelda data points
-    zelda_files = glob.glob(str(src.DATA_DIR / "zelda" / "zelda" / "train_data" / "*.jsonl")) \
-                + glob.glob(str(src.DATA_DIR / "zelda" / "zelda" / "test_data" / "jsonl" / "*.jsonl"))
+    zelda_files = glob.glob(str(src.DATA_DIR / "zelda" / "zelda" / "train_data" / "*.jsonl"))
+                #+ glob.glob(str(src.DATA_DIR / "zelda" / "zelda" / "test_data" / "jsonl" / "*.jsonl"))
 
     for zelda_file in tqdm(zelda_files, desc="Processing Zelda files"):
 

@@ -1,2 +1,5 @@
 tqdm==4.65.0
-syntok=1.4.4
+syntok==1.4.4
+pytorch-lightning
+transformers
+datasets
