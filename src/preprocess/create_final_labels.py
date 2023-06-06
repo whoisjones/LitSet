@@ -4,7 +4,7 @@ from tqdm import tqdm
 import src
 
 
-def create_final_labels():
+def create_final_annotations():
     with open("entities/entityID2instanceID.json") as f:
         entityID2instanceID = json.load(f)
 

@@ -11,7 +11,10 @@ def create_ner_dataset(args):
         os.mkdir(src.DATA_DIR)
 
     if args.download_data:
-        if not os.path.exists(src.DATA_DIR / "trex"):
+        if args.use_datasets not in ["trex", "zelda", "all"]:
+            raise Exception("Please set --use_datasets to either 'trex', 'zelda' or 'all'.")
+
+        if args.use_datasets in ["trex", "all"] and not os.path.exists(src.DATA_DIR / "trex"):
             os.mkdir(src.DATA_DIR / "trex")
             logger.info("Download T-REx dataset...")
             src.api.download_trex()
@@ -21,7 +24,7 @@ def create_ner_dataset(args):
             src.api.extract_trex()
             logger.info("Done.")
 
-        if not os.path.exists(src.DATA_DIR / "zelda"):
+        if args.use_datasets in ["zelda", "all"] and not os.path.exists(src.DATA_DIR / "zelda"):
             os.mkdir(src.DATA_DIR / "zelda")
             logger.info("Download ZELDA dataset...")
             src.api.download_zelda()
@@ -31,23 +34,23 @@ def create_ner_dataset(args):
             src.api.extract_zelda()
             logger.info("Done.")
 
-    elif not os.path.exists(src.DATA_DIR / "trex") and os.path.exists(src.DATA_DIR / "zelda"):
+    elif not any([os.path.exists(src.DATA_DIR / "trex"), os.path.exists(src.DATA_DIR / "zelda")]):
         raise Exception("Datasets missing. Please set --download_data to True.")
 
     if not os.path.exists(src.ENTITY_DIR):
         os.mkdir(src.ENTITY_DIR)
 
     if "wikidata_entities.json" not in os.listdir(src.ENTITY_DIR):
-        logger.info("Extracting all entites from T-REx and ZELDA...")
-        src.preprocess.extract_entities()
+        logger.info("Extracting all entites from datasets...")
+        src.preprocess.extract_entities(args)
         logger.info("Done.")
 
         logger.info("Query instance of for entities with SPARQL...")
-        src.api.retrieve_entity2instance()
+        src.api.retrieve_entity2instance(args)
         logger.info("Done.")
 
         logger.info("Query instance of for entities with SPARQL...")
-        src.api.retrieve_short_descriptions()
+        src.api.retrieve_short_descriptions(args)
         logger.info("Done.")
 
         logger.info("Quality checks for queried entities...")
@@ -55,7 +58,7 @@ def create_ner_dataset(args):
         logger.info("Done.")
 
         logger.info("Creating final labels...")
-        src.preprocess.create_final_labels()
+        src.preprocess.create_final_annotations()
         logger.info("Done.")
 
     if not os.path.exists(src.NER_DATASET_DIR):

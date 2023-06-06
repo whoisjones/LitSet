@@ -5,19 +5,15 @@ from tqdm import tqdm
 import src
 
 
-def retrieve_entity2instance():
+def query_instance_of(wikidata_entities, dataset_name):
     # define the SPARQL endpoint
     endpoint_url = "https://query.wikidata.org/sparql"
-
-    # load entities
-    with open(src.ENTITY_DIR / "wikidata_entities.json", "r") as f:
-        entities = json.load(f)
 
     # max header size
     chunk_size = 200
 
     headers = {
-        "User-Agent": "long-tail-ner/1.0 (jonas.golde@gmail.com)",
+        "User-Agent": "long-tail-ner/1.0",
         "Accept": "application/sparql-results+json"
     }
 
@@ -26,8 +22,8 @@ def retrieve_entity2instance():
     instanceID2label = {}
     subclassID2label = {}
 
-    for i in tqdm(range(0, len(entities), chunk_size)):
-        chunk = entities[i:i + chunk_size]
+    for i in tqdm(range(0, len(wikidata_entities), chunk_size)):
+        chunk = wikidata_entities[i:i + chunk_size]
 
         query = f"""
         SELECT DISTINCT ?entity ?instance ?instanceLabel ?subclass ?subclassLabel WHERE {{
@@ -66,28 +62,39 @@ def retrieve_entity2instance():
             instanceID2subclassID = src.utils.data.merge_dicts(instanceID2subclassID, temp_i2s)
 
     entityID2instanceID = {key: list(value) for key, value in entityID2instanceID.items()}
-    with open(src.ENTITY_DIR / f"entityID2instanceID.json", "w") as f:
+    with open(src.ENTITY_DIR / f"{dataset_name}_entityID2instanceID.json", "w") as f:
         json.dump(entityID2instanceID, f)
 
     instanceID2subclassID = {key: list(value) for key, value in instanceID2subclassID.items()}
-    with open(src.ENTITY_DIR / f"instanceID2subclassID.json", "w") as f:
+    with open(src.ENTITY_DIR / f"{dataset_name}_instanceID2subclassID.json", "w") as f:
         json.dump(instanceID2subclassID, f)
 
-    with open(src.ENTITY_DIR / f"instanceID2label.json", "w") as f:
+    with open(src.ENTITY_DIR / f"{dataset_name}_instanceID2label.json", "w") as f:
         json.dump(instanceID2label, f)
 
-    with open(src.ENTITY_DIR / f"subclassID2label.json", "w") as f:
+    with open(src.ENTITY_DIR / f"{dataset_name}_subclassID2label.json", "w") as f:
         json.dump(subclassID2label, f)
 
 
-def retrieve_short_descriptions():
-    with open(src.ENTITY_DIR / "wikidata_entities.json", "r") as f:
-        entities = json.load(f)
+def retrieve_entity2instance(args):
 
+    # load entities
+    if args.use_datasets in ["trex", "all"]:
+        with open(src.ENTITY_DIR / "trex_entities.json", "r") as f:
+            trex_entities = json.load(f)
+            query_instance_of(trex_entities, "trex")
+
+    if args.use_datasets in ["zelda", "all"]:
+        with open(src.ENTITY_DIR / "zelda_entities.json", "r") as f:
+            zelda_entities = json.load(f)
+            query_instance_of(zelda_entities, "zelda")
+
+
+def query_short_descriptions(wikidata_entities, dataset_name):
     chunk_size = 200
     short_descriptions = {}
-    for i in tqdm(range(0, len(entities), chunk_size)):
-        chunk = entities[i:i + chunk_size]
+    for i in tqdm(range(0, len(wikidata_entities), chunk_size)):
+        chunk = wikidata_entities[i:i + chunk_size]
 
         # Construct the SPARQL query using an f-string
         query = f'''
@@ -101,8 +108,8 @@ def retrieve_short_descriptions():
         url = 'https://query.wikidata.org/sparql'
         # Set the request headers (optional)
         headers = {
-            'User-Agent': 'My SPARQL Client',
-            'Accept': 'application/sparql-results+json'
+            "User-Agent": "long-tail-ner/1.0",
+            "Accept": "application/sparql-results+json"
         }
         # Set the request parameters
         params = {
@@ -120,5 +127,17 @@ def retrieve_short_descriptions():
             if short_description not in ["Wikimedia disambiguation page", "Wikimedia list article"]:
                 short_descriptions[entity.split("/")[-1]] = short_description
 
-    with open(src.ENTITY_DIR / f"entity2shortdescription.json", "w") as f:
+    with open(src.ENTITY_DIR / f"{dataset_name}_entity2shortdescription.json", "w") as f:
         json.dump(short_descriptions, f)
+
+
+def retrieve_short_descriptions(args):
+    if args.use_datasets in ["trex", "all"]:
+        with open(src.ENTITY_DIR / "trex_entities.json", "r") as f:
+            trex_entities = json.load(f)
+            query_short_descriptions(trex_entities, "trex")
+
+    if args.use_datasets in ["zelda", "all"]:
+        with open(src.ENTITY_DIR / "zelda_entities.json", "r") as f:
+            zelda_entities = json.load(f)
+            query_short_descriptions(zelda_entities, "zelda")

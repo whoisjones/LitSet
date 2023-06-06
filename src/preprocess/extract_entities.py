@@ -9,23 +9,28 @@ import src
 logger = logging.getLogger("logger")
 
 
-def extract_entities():
-    trex_entities = extract_trex_entities()
-    zelda_entities = extract_zelda_entities()
-
-    wikipageID2wikidataID = {wikipage: wikidata for wikipage, wikidata in zelda_entities}
-    with open(src.ENTITY_DIR / "wikipageID2wikidataID.json", "w") as f:
-        json.dump(wikipageID2wikidataID, f)
-
-    zelda_wikidata_entities = set([entity[1] for entity in zelda_entities])
-
-    wikidata_entities = trex_entities.union(zelda_wikidata_entities)
-
-    save_path = src.ENTITY_DIR / "wikidata_entities.json"
+def save_entities(entities, file_name: str):
+    save_path = src.ENTITY_DIR / file_name
 
     logger.info(f"Saving it to: {save_path}")
     with open(save_path, "w") as f:
-        json.dump(list(wikidata_entities), f)
+        json.dump(list(entities), f)
+
+
+def extract_entities(args):
+    if args.use_datasets in ["trex", "all"]:
+        trex_entities = extract_trex_entities()
+        save_entities(trex_entities, "trex_entities.json")
+
+    if args.use_datasets in ["zelda", "all"]:
+        zelda_entities = extract_zelda_entities()
+        wikipageID2wikidataID = {wikipage: wikidata for wikipage, wikidata in zelda_entities}
+
+        with open(src.ENTITY_DIR / "wikipageID2wikidataID.json", "w") as f:
+            json.dump(wikipageID2wikidataID, f)
+
+        zelda_wikidata_entities = set([entity[1] for entity in zelda_entities])
+        save_entities(zelda_wikidata_entities, "zelda_entities.json")
 
 
 def extract_trex_entities() -> set:
