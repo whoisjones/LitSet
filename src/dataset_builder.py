@@ -7,7 +7,7 @@ from syntok.tokenizer import Tokenizer
 import syntok.segmenter as segmenter
 
 import src
-from src.store import write_to_file, jsonl_counter, jsonl_offset_counter
+from src.store import write_to_file, jsonl_counter, jsonl_offset_counter, jsonl_bio_counter
 from src.utils import to_range, is_range_within
 
 tok = Tokenizer()
@@ -120,11 +120,48 @@ def sample_to_jsonl(sample, entities):
         }
 
 
+def sample_to_jsonl_bio(sample, entities):
+
+    for boundary in sample["sentences_boundaries"]:
+
+        sentence = sample["text"][boundary[0]:boundary[1]]
+        tokens = []
+        ner_tags = []
+        prev_io_tag = None
+        for token in tok.tokenize(sentence):
+            tokens.append(token.value.strip())
+
+            matches = [(entity_range, labels) for entity_range, labels in entities.items() if token.offset + boundary[0] in entity_range]
+            if matches:
+                ranges, label = zip(*matches)
+                if prev_io_tag is None or prev_io_tag != label[0]:
+                    ner_tags.append(label[0] * 2 - 1)
+                else:
+                    ner_tags.append(label[0] * 2)
+                prev_io_tag = label[0]
+            else:
+                ner_tags.append(0)
+                prev_io_tag = 0
+
+        assert len(tokens) == len(ner_tags)
+
+        if len(tokens) == 0:
+            continue
+
+        yield {
+            "id": jsonl_bio_counter(),
+            "tokens": tokens,
+            "ner_tags": ner_tags
+        }
+
+
 def sample_to_format_generator(output_format: str, entities: dict, sample: dict):
     if output_format == "conll":
         return sample_to_conll(sample, entities)
     elif output_format == "jsonl":
         return sample_to_jsonl(sample, entities)
+    elif output_format == "jsonl_bio":
+        return sample_to_jsonl_bio(sample, entities)
     elif output_format == "jsonl_with_offsets":
         return sample_to_jsonl_with_offsets(sample, entities)
     else:
@@ -133,7 +170,7 @@ def sample_to_format_generator(output_format: str, entities: dict, sample: dict)
 
 def build_NER(output_format: list):
     # Quality checks
-    valid_output_formats = {"conll", "jsonl"}
+    valid_output_formats = {"conll", "jsonl", "jsonl_bio", "jsonl_with_offsets"}
     if not all(item in valid_output_formats for item in output_format) and len(set(output_format)) <= 2:
         raise ValueError("Invalid output format")
 
@@ -143,7 +180,7 @@ def build_NER(output_format: list):
 
     with open(src.ENTITY_DIR / "wikipageID2wikidataID.json", "r") as f:
         wikipageID2wikidataID = json.load(f)
-    """"
+
     # Generate T-REx data points
     trex_files = glob.glob(str(src.DATA_DIR / "trex" / "*.json"))
 
@@ -162,14 +199,14 @@ def build_NER(output_format: list):
 
         for _format, generators in format_generators.items():
             write_to_file(chain(*generators), _format)
-    """
+
     # Generate Zelda data points
     zelda_files = glob.glob(str(src.DATA_DIR / "zelda" / "zelda" / "train_data" / "*.jsonl"))
                 #+ glob.glob(str(src.DATA_DIR / "zelda" / "zelda" / "test_data" / "jsonl" / "*.jsonl"))
 
     for zelda_file in tqdm(zelda_files, desc="Processing Zelda files"):
 
-        with open(zelda_file) as f:
+        with open(zelda_file, encoding="utf-8") as f:
             input_file = f.readlines()
 
         format_generators = {_format: [] for _format in output_format}

@@ -46,6 +46,10 @@ def create_ner_dataset(args):
         src.api.retrieve_entity2instance()
         logger.info("Done.")
 
+        logger.info("Query instance of for entities with SPARQL...")
+        src.api.retrieve_short_descriptions()
+        logger.info("Done.")
+
         logger.info("Quality checks for queried entities...")
         src.preprocess.clean_crawled_entities()
         logger.info("Done.")

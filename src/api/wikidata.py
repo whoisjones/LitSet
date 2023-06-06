@@ -78,3 +78,47 @@ def retrieve_entity2instance():
 
     with open(src.ENTITY_DIR / f"subclassID2label.json", "w") as f:
         json.dump(subclassID2label, f)
+
+
+def retrieve_short_descriptions():
+    with open(src.ENTITY_DIR / "wikidata_entities.json", "r") as f:
+        entities = json.load(f)
+
+    chunk_size = 200
+    short_descriptions = {}
+    for i in tqdm(range(0, len(entities), chunk_size)):
+        chunk = entities[i:i + chunk_size]
+
+        # Construct the SPARQL query using an f-string
+        query = f'''
+        SELECT ?entity ?shortDescription WHERE {{
+          VALUES ?entity {{ {" ".join(["wd:" + entity for entity in chunk])} }}
+          ?entity schema:description ?shortDescription .
+          FILTER(LANG(?shortDescription) = "en")
+        }}
+        '''
+        # Set the endpoint URL for the Wikidata SPARQL service
+        url = 'https://query.wikidata.org/sparql'
+        # Set the request headers (optional)
+        headers = {
+            'User-Agent': 'My SPARQL Client',
+            'Accept': 'application/sparql-results+json'
+        }
+        # Set the request parameters
+        params = {
+            'query': query
+        }
+        # Send the HTTP GET request
+        response = requests.get(url, headers=headers, params=params)
+        # Parse the JSON response
+        data = response.json()
+        # Extract the short descriptions from the response
+        bindings = data['results']['bindings']
+        for binding in bindings:
+            entity = binding['entity']['value']
+            short_description = binding['shortDescription']['value']
+            if short_description not in ["Wikimedia disambiguation page", "Wikimedia list article"]:
+                short_descriptions[entity.split("/")[-1]] = short_description
+
+    with open(src.ENTITY_DIR / f"entity2shortdescription.json", "w") as f:
+        json.dump(short_descriptions, f)
