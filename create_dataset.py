@@ -77,5 +77,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--download_data", action="store_true")
     parser.add_argument("--output_format", nargs="*", default=["conll", "jsonl", "jsonl_with_offsets"])
+    parser.add_argument("--use_datasets", default="all")
     args = parser.parse_args()
     create_ner_dataset(args)
