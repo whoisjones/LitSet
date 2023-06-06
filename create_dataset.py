@@ -40,7 +40,8 @@ def create_ner_dataset(args):
     if not os.path.exists(src.ENTITY_DIR):
         os.mkdir(src.ENTITY_DIR)
 
-    if "wikidata_entities.json" not in os.listdir(src.ENTITY_DIR):
+    if ("trex_entities.json" not in os.listdir(src.ENTITY_DIR) and args.use_datasets in ["trex", "all"]) or \
+        ("zelda_entities.json" not in os.listdir(src.ENTITY_DIR) and args.use_datasets in ["zelda", "all"]):
         logger.info("Extracting all entites from datasets...")
         src.preprocess.extract_entities(args)
         logger.info("Done.")
