@@ -11,20 +11,7 @@ def create_ner_dataset(args):
         os.mkdir(src.DATA_DIR)
 
     if args.download_data:
-        if args.use_datasets not in ["trex", "zelda", "all"]:
-            raise Exception("Please set --use_datasets to either 'trex', 'zelda' or 'all'.")
-
-        if args.use_datasets in ["trex", "all"] and not os.path.exists(src.DATA_DIR / "trex"):
-            os.mkdir(src.DATA_DIR / "trex")
-            logger.info("Download T-REx dataset...")
-            src.api.download_trex()
-            logger.info("Done.")
-
-            logger.info("Extracing T-REx dataset...")
-            src.api.extract_trex()
-            logger.info("Done.")
-
-        if args.use_datasets in ["zelda", "all"] and not os.path.exists(src.DATA_DIR / "zelda"):
+        if not os.path.exists(src.DATA_DIR / "zelda"):
             os.mkdir(src.DATA_DIR / "zelda")
             logger.info("Download ZELDA dataset...")
             src.api.download_zelda()
@@ -34,30 +21,36 @@ def create_ner_dataset(args):
             src.api.extract_zelda()
             logger.info("Done.")
 
-    elif not any([os.path.exists(src.DATA_DIR / "trex"), os.path.exists(src.DATA_DIR / "zelda")]):
-        raise Exception("Datasets missing. Please set --download_data to True.")
+    elif not os.path.exists(src.DATA_DIR / "zelda"):
+        raise Exception("ZELDA dataset missing. Please set --download_data to True.")
 
     if not os.path.exists(src.ENTITY_DIR):
         os.mkdir(src.ENTITY_DIR)
 
-    if ("trex_entities.json" not in os.listdir(src.ENTITY_DIR) and args.use_datasets in ["trex", "all"]) or \
-        ("zelda_entities.json" not in os.listdir(src.ENTITY_DIR) and args.use_datasets in ["zelda", "all"]):
+    if "entities.json" not in os.listdir(src.ENTITY_DIR):
         logger.info("Extracting all entites from datasets...")
-        src.preprocess.extract_entities(args)
+        src.preprocess.extract_entities()
         logger.info("Done.")
 
+    qa_required = False
+    if "entityID2instanceID.json" not in os.listdir(src.ENTITY_DIR):
         logger.info("Query instance of for entities with SPARQL...")
-        src.api.retrieve_entity2instance(args)
+        src.api.retrieve_entity2instance()
         logger.info("Done.")
+        qa_required = True
 
+    if "entityID2shortdescriptions.json" not in os.listdir(src.ENTITY_DIR):
         logger.info("Query instance of for entities with SPARQL...")
-        src.api.retrieve_short_descriptions(args)
+        src.api.retrieve_short_descriptions()
         logger.info("Done.")
+        qa_required = True
 
+    if qa_required:
         logger.info("Quality checks for queried entities...")
         src.preprocess.clean_crawled_entities()
         logger.info("Done.")
 
+    if not os.path.exists(src.ENTITY_DIR / "entityID2labelID.json") and not os.path.exists(src.ENTITY_DIR / "labelID2label.json"):
         logger.info("Creating final labels...")
         src.preprocess.create_final_annotations()
         logger.info("Done.")
@@ -77,7 +70,6 @@ def create_ner_dataset(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--download_data", action="store_true")
-    parser.add_argument("--output_format", nargs="*", default=["conll", "jsonl", "jsonl_with_offsets"])
-    parser.add_argument("--use_datasets", default="all")
+    parser.add_argument("--output_format", nargs="*", default=["jsonl_bio"])
     args = parser.parse_args()
     create_ner_dataset(args)

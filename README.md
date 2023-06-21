@@ -1,23 +1,15 @@
-# LoNER
-The repository to the paper "LoNER".
+# NER4ALL
+The repository to the paper "NER4ALL".
 
-LoNER is a pretraining corpus for named entity recognition with over 100k fine-defined labels. The dataset is particularly
-designed for NER approaches utilizing label verbalizers to capture the semantics of the labels.
-
-You can find the dataset on huggingface: https://huggingface.co/datasets/loner
-
-Or download it here directly: [CoNLL-format](to do), [JSONL-format](to do), [JSONL-format with offsets](to do)
+NER4ALL uses entity disambiguation datasets for pre-training few-shot named entity recognition models using labels in natural language.
 
 ## Requirements
 ```
-conda create -name loner python=3.8
+conda create -name ner4all python=3.10
 pip install -r requirements.txt
 ```
 
-## How to create a dataset from scratch
+## How to use
 ```
-python create_dataset.py --download_data --output_format ["jsonl", "conll", "jsonl_with_offsets"]
+python create_dataset.py --download_data --output_format jsonl_bio
 ```
-
-### Citation
-If you use this dataset, please cite our paper.
