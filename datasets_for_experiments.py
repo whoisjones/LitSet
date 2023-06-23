@@ -7,7 +7,7 @@ import json
 from torch.utils.data.dataset import Subset
 
 from flair.datasets import CONLL_03, FEWNERD, ONTONOTES, WNUT_17
-from flair.data import MultiFileColumnCorpus
+from flair.datasets.sequence_labeling import MultiFileColumnCorpus
 
 
 class NER4ALL_ZELDA(MultiFileColumnCorpus):

@@ -24,7 +24,7 @@ from flair.trainers import ModelTrainer
 from flair.training_utils import store_embeddings
 from torch.utils.data.dataset import Subset
 
-from dataset_loader import get_masked_fewnerd_corpus, get_corpus
+from datasets_for_experiments import get_masked_fewnerd_corpus, get_corpus
 
 
 class TokenClassifier(flair.nn.DefaultClassifier[Sentence, Token]):
@@ -399,13 +399,11 @@ class NER4ALLModel(torch.nn.Module):
 
 def get_save_base_path(args, task_name):
     is_pretraining = True if "pretrain" in task_name else False
-    if args.dataset_path:
-        is_zelda = True if "zelda" in args.dataset_path.lower() else False
-        dataset = f"NER4ALL{'-ZELDA' if is_zelda else ''}"
-    else:
-        dataset = f"{args.dataset}{args.fewnerd_granularity if args.dataset == 'fewnerd' else ''}"
 
     if is_pretraining:
+        is_zelda = True if "zelda" in args.dataset_path.lower() else False
+        dataset = f"NER4ALL{'-ZELDA' if is_zelda else ''}"
+
         sampling = "-".join([str(x) for x in args.uniform_p])
         training_arguments = f"_{args.lr}_seed-{args.seed}_mask-{args.num_negatives}_size-{args.corpus_size}{f'_sampling-{sampling}' if sampling != '0.5-0.5' else ''}"
 
@@ -414,6 +412,7 @@ def get_save_base_path(args, task_name):
         else:
             model_arguments = f"{args.encoder_transformer}_{args.decoder_transformer}"
     else:
+        dataset = f"{args.dataset}{args.fewnerd_granularity if args.dataset == 'fewnerd' else ''}"
         pretraining_model = args.pretrained_hf_encoder.split('/')[-2]
         training_arguments = f"-{args.lr}_pretrained-on-{pretraining_model}"
 
@@ -530,98 +529,6 @@ def pretrain(args):
     decoder_tokenizer.save_pretrained(save_base_path / "decoder")
 
 
-def tagset_adaption(args):
-    flair.set_seed(args.seed)
-
-    if torch.cuda.is_available():
-        flair.device = f"cuda:{args.cuda_device}"
-
-    save_base_path = get_save_base_path(args, task_name="fewshot-ner4all-tagset-adaption")
-
-    with open(f"data/fewshot_fewnerdfine.json", "r") as f:
-        fewshot_indices = json.load(f)
-
-    results = {}
-
-    # every pretraining seed masks out different examples in the dataset
-    base_corpus = get_corpus(args.dataset, args.fewnerd_granularity)
-
-    # iterate over k-shots
-    for k in args.k:
-
-        # average k-shot scores over 3 seeds for pretraining seed
-        results[f"{k}"] = {"results": []}
-
-        for seed in range(0, 5):
-
-            if seed > 0 and k == 0:
-                continue
-
-            # ensure same sampling strategy for each seed
-            flair.set_seed(seed)
-            corpus = copy.copy(base_corpus)
-            if k != 0:
-                if k == -1:
-                    pass
-                else:
-                    corpus._train = Subset(base_corpus._train, fewshot_indices[f"{k}-{seed}"])
-                    corpus._dev = Subset(base_corpus._train, [])
-            else:
-                pass
-
-            # mandatory for flair to work
-            tag_type = "ner"
-            label_dictionary = corpus.make_label_dictionary(tag_type, add_unk=False)
-            decoder_dict = TokenClassifier._create_internal_label_dictionary(label_dictionary, span_encoding="BIO")
-            decoder_dict.span_labels = True
-
-            encoder = TransformerWordEmbeddings(args.pretrained_hf_encoder, use_context_separator=False, use_context=False)
-            if "all-mpnet-base-v2" in args.pretrained_hf_decoder:
-                label_embeddings = SentenceTransformerDocumentEmbeddings(args.pretrained_hf_decoder)
-            else:
-                label_embeddings = TransformerDocumentEmbeddings(args.pretrained_hf_decoder, use_context_separator=False, use_context=False)
-            decoder = NER4ALLDecoderFlair(
-                label_embedding=label_embeddings, label_dictionary=decoder_dict,
-                requires_masking=False, num_negatives=args.num_negatives)
-            model = TokenClassifier(embeddings=encoder, decoder=decoder, label_dictionary=label_dictionary,
-                                    label_type=tag_type, span_encoding="BIO")
-
-            if k != 0:
-                trainer = ModelTrainer(model, corpus)
-
-                save_path = save_base_path / f"{k}shot_{seed}"
-
-                # 7. run fine-tuning
-                result = trainer.train(
-                    save_path,
-                    learning_rate=args.lr,
-                    mini_batch_size=args.bs,
-                    mini_batch_chunk_size=args.mbs,
-                    max_epochs=args.epochs if k != -1 else 3,
-                    optimizer=torch.optim.AdamW,
-                    train_with_dev=True,
-                    min_learning_rate=args.lr * 1e-2,
-                    save_final_model=False,
-                )
-
-                results[f"{k}"]["results"].append(result["test_score"])
-
-                for sentence in corpus.train:
-                    for token in sentence:
-                        token.remove_labels(tag_type)
-            else:
-                save_path = save_base_path / f"{k}shot_{seed}"
-                import os
-
-                if not os.path.exists(save_path):
-                    os.mkdir(save_path)
-
-                result = model.evaluate(corpus.test, "ner", out_path=save_path / "predictions.txt")
-                results[f"{k}"]["results"].append(result.main_score)
-                with open(save_path / "result.txt", "w") as f:
-                    f.write(result.detailed_results)
-
-
 def low_resource(args):
     flair.set_seed(args.seed)
 
@@ -630,7 +537,7 @@ def low_resource(args):
 
     save_base_path = get_save_base_path(args, task_name="fewshot-ner4all-low-resource")
 
-    with open(f"data/fewshot_{args.dataset}{args.fewnerd_granularity if args.dataset == 'fewnerd' else ''}.json", "r") as f:
+    with open(f"fewshot_splits/fewshot_{args.dataset}{args.fewnerd_granularity if args.dataset == 'fewnerd' else ''}.json", "r") as f:
         fewshot_indices = json.load(f)
 
     results = {}
@@ -717,13 +624,13 @@ def low_resource(args):
 
 def tagset_extension(args):
     flair.set_seed(args.seed)
-
+    assert args.dataset == "fewnerd", "Tagset extension only works with fewnerd"
     if torch.cuda.is_available():
         flair.device = f"cuda:{args.cuda_device}"
 
     save_base_path = get_save_base_path(args, task_name="fewshot-ner4all-tagset-extension")
 
-    with open(f"data/fewshot_masked-fewnerd-{args.fewnerd_granularity}.json", "r") as f:
+    with open(f"fewshot_splits/fewshot_masked-fewnerd-{args.fewnerd_granularity}.json", "r") as f:
         fewshot_indices = json.load(f)
 
     results = {}
@@ -801,6 +708,97 @@ def tagset_extension(args):
                     results[f"{k}-{fewshot_seed}"]["results"].append(result.main_score)
                     with open(save_path / "result.txt", "w") as f:
                         f.write(result.detailed_results)
+
+def tagset_adaption(args):
+    flair.set_seed(args.seed)
+
+    if torch.cuda.is_available():
+        flair.device = f"cuda:{args.cuda_device}"
+
+    save_base_path = get_save_base_path(args, task_name="fewshot-ner4all-tagset-adaption")
+
+    with open(f"fewshot_splits/fewshot_fewnerdfine.json", "r") as f:
+        fewshot_indices = json.load(f)
+
+    results = {}
+
+    # every pretraining seed masks out different examples in the dataset
+    base_corpus = get_corpus("fewnerd", "fine")
+
+    # iterate over k-shots
+    for k in args.k:
+
+        # average k-shot scores over 3 seeds for pretraining seed
+        results[f"{k}"] = {"results": []}
+
+        for seed in range(0, 5):
+
+            if seed > 0 and k == 0:
+                continue
+
+            # ensure same sampling strategy for each seed
+            flair.set_seed(seed)
+            corpus = copy.copy(base_corpus)
+            if k != 0:
+                if k == -1:
+                    pass
+                else:
+                    corpus._train = Subset(base_corpus._train, fewshot_indices[f"{k}-{seed}"])
+                    corpus._dev = Subset(base_corpus._train, [])
+            else:
+                pass
+
+            # mandatory for flair to work
+            tag_type = "ner"
+            label_dictionary = corpus.make_label_dictionary(tag_type, add_unk=False)
+            decoder_dict = TokenClassifier._create_internal_label_dictionary(label_dictionary, span_encoding="BIO")
+            decoder_dict.span_labels = True
+
+            encoder = TransformerWordEmbeddings(args.pretrained_hf_encoder, use_context_separator=False, use_context=False)
+            if "all-mpnet-base-v2" in args.pretrained_hf_decoder:
+                label_embeddings = SentenceTransformerDocumentEmbeddings(args.pretrained_hf_decoder)
+            else:
+                label_embeddings = TransformerDocumentEmbeddings(args.pretrained_hf_decoder, use_context_separator=False, use_context=False)
+            decoder = NER4ALLDecoderFlair(
+                label_embedding=label_embeddings, label_dictionary=decoder_dict,
+                requires_masking=False, num_negatives=args.num_negatives)
+            model = TokenClassifier(embeddings=encoder, decoder=decoder, label_dictionary=label_dictionary,
+                                    label_type=tag_type, span_encoding="BIO")
+
+            if k != 0:
+                trainer = ModelTrainer(model, corpus)
+
+                save_path = save_base_path / f"{k}shot_{seed}"
+
+                # 7. run fine-tuning
+                result = trainer.train(
+                    save_path,
+                    learning_rate=args.lr,
+                    mini_batch_size=args.bs,
+                    mini_batch_chunk_size=args.mbs,
+                    max_epochs=args.epochs if k != -1 else 3,
+                    optimizer=torch.optim.AdamW,
+                    train_with_dev=True,
+                    min_learning_rate=args.lr * 1e-2,
+                    save_final_model=False,
+                )
+
+                results[f"{k}"]["results"].append(result["test_score"])
+
+                for sentence in corpus.train:
+                    for token in sentence:
+                        token.remove_labels(tag_type)
+            else:
+                save_path = save_base_path / f"{k}shot_{seed}"
+                import os
+
+                if not os.path.exists(save_path):
+                    os.mkdir(save_path)
+
+                result = model.evaluate(corpus.test, "ner", out_path=save_path / "predictions.txt")
+                results[f"{k}"]["results"].append(result.main_score)
+                with open(save_path / "result.txt", "w") as f:
+                    f.write(result.detailed_results)
 
 
 if __name__ == "__main__":
