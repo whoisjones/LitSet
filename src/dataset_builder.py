@@ -7,7 +7,7 @@ from syntok.tokenizer import Tokenizer
 import syntok.segmenter as segmenter
 
 import src
-from src.store import write_to_file, jsonl_bio_counter
+from src.store import write_to_file, jsonl_counter, jsonl_bio_counter
 
 tok = Tokenizer()
 
@@ -51,6 +51,32 @@ def create_datapoint_from_zelda(sample, entityID2labelID, wikipageID2wikidataID)
     return entities, sample
 
 
+def sample_to_jsonl(sample, entities):
+
+    for boundary in sample["sentences_boundaries"]:
+
+        sentence = sample["text"][boundary[0]:boundary[1]]
+        tokens = []
+        ner_tags = []
+        for token in tok.tokenize(sentence):
+            tokens.append(token.value.strip())
+
+            matches = [(entity_range, labels) for entity_range, labels in entities.items() if token.offset + boundary[0] in entity_range]
+            if matches:
+                ranges, label = zip(*matches)
+                ner_tags.append(label[0])
+            else:
+                ner_tags.append(0)
+
+        assert len(tokens) == len(ner_tags)
+
+        yield {
+            "id": jsonl_counter(),
+            "tokens": tokens,
+            "ner_tags": ner_tags
+        }
+
+
 def sample_to_jsonl_bio(sample, entities):
 
     for boundary in sample["sentences_boundaries"]:
@@ -87,7 +113,9 @@ def sample_to_jsonl_bio(sample, entities):
 
 
 def sample_to_format_generator(output_format: str, entities: dict, sample: dict):
-    if output_format == "jsonl_bio":
+    if output_format == "jsonl":
+        return sample_to_jsonl(sample, entities)
+    elif output_format == "jsonl_bio":
         return sample_to_jsonl_bio(sample, entities)
     else:
         raise ValueError("Invalid output format")
@@ -95,7 +123,7 @@ def sample_to_format_generator(output_format: str, entities: dict, sample: dict)
 
 def build_NER(output_format: list):
     # Quality checks
-    valid_output_formats = {"jsonl_bio"}
+    valid_output_formats = ["jsonl", "jsonl_bio"]
     if not all(item in valid_output_formats for item in output_format) and len(set(output_format)) <= 2:
         raise ValueError("Invalid output format")
 
